@@ -1,9 +1,50 @@
-# 火柴人大战数字 · 数字狂潮
+<div align="center">
 
-俯视角 **2D 割草木鸽**（Roguelite）· p5.js 2.3.2 · 与《火柴人大战数学》同一世界观。
-一句话概念：**数字怪的头顶数字就是血条，挨一下 -1，减到 0 碎成粉笔屑。**
+# 🎨 火柴人大战数字 · 数字狂潮
 
-![截图](_review/t-play1.png)
+**Stickman vs Numbers · Number Tide**
+
+俯视角 2D 割草木鸽（Roguelite）· 与《火柴人大战数学》同一世界观
+
+**数字怪的头顶数字就是血条 —— 挨一下 -1，减到 0 碎成粉笔屑。**
+
+![p5.js](https://img.shields.io/badge/p5.js-2.3.2-ED225D?logo=p5dotjs&logoColor=white)
+![genre](https://img.shields.io/badge/genre-survivors_like%20%7C%20roguelite-blueviolet)
+![campaign](https://img.shields.io/badge/战役-10关_完结-success)
+![platform](https://img.shields.io/badge/platform-Web_%7C_手机触屏-9cf)
+![deps](https://img.shields.io/badge/依赖-零-orange)
+
+<img src="_review/t-play10.png" width="860" alt="最终关对局">
+
+*第九关《函数迷宫》：∫ 兵正弦弹道弹幕 · 荧光黑板风*
+
+<br>
+
+</div>
+
+---
+
+## 🎮 先睹为快
+
+| 标题画面 | 选关（5+5 网格 · 通关✓角标） |
+|---|---|
+| ![标题](_review/t-title.png) | ![选关](_review/t-select10.png) |
+| **进化卡**（满级+专属被动 → 金色进化） | **BOSS 战**（原点之神 · 三形态） |
+| ![进化卡](_review/t-evocard.png) | ![原点之神](_review/t-boss10.png) |
+| **♾ 无尽模式**（轮次+场景轮换） | **手机竖屏**（虚拟摇杆） |
+| ![无尽](_review/t-endless.png) | ![手机](_review/t-mobile-portrait.png) |
+
+<details>
+<summary><b>📸 更多截图</b>（进化形态 / 全通彩蛋 / 旧版三选一）</summary>
+<br>
+
+| **铅笔风暴**（进化后 8 支双圈 + HUD ★） | **全通彩蛋**（原点之神终章 + 前作联动） |
+|---|---|
+| ![进化后](_review/t-evolved.png) | ![全通](_review/t-allclear.png) |
+| **升级三选一** | **手机横屏对局**（摇杆 + HUD） |
+| ![三选一](_review/t-levelup.png) | ![横屏](_review/t-mobile-play.png) |
+
+</details>
 
 ---
 
