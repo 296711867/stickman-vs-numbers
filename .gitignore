@@ -16,3 +16,9 @@ __pycache__/
 *.bak
 *~
 *.tmp
+
+# 软著申请材料（个人资料，仅本地保留，勿上传公开仓库）
+软件著作权申请资料/
+
+# wx 移植验证 harness 的构建产物（bundle 由 build-bundle.py 重建）
+_wxp/bundle.js
