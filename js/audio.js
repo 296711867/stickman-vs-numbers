@@ -4,9 +4,34 @@
 'use strict';
 
 let audioCtx = null;
+let _audioApi = 'none';   // 音频后端标记：AudioContext / wx.createWebAudioContext / none
+let _intWired = false;
+
 function initAudio() {
-  if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audioCtx = null; } }
-  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  if (audioCtx) { _resumeAudio(); return; }
+  try {
+    if (typeof wx !== 'undefined' && wx.createWebAudioContext) {
+      audioCtx = wx.createWebAudioContext();      // 微信小游戏
+      _audioApi = 'wx.createWebAudioContext';
+    } else {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) { audioCtx = new AC(); _audioApi = 'AudioContext'; }
+    }
+  } catch (e) { audioCtx = null; }
+  _resumeAudio();
+  /* 电话/后台中断自动处理（仅 wx 有此事件） */
+  if (typeof wx !== 'undefined' && wx.onAudioInterruptionBegin && !_intWired) {
+    _intWired = true;
+    wx.onAudioInterruptionBegin(function () { try { if (audioCtx && audioCtx.suspend) audioCtx.suspend(); } catch (e) {} });
+    wx.onAudioInterruptionEnd(function () { try { if (audioCtx && audioCtx.resume) audioCtx.resume(); } catch (e) {} });
+  }
+}
+function _resumeAudio() {
+  if (!audioCtx) return;
+  try {
+    if (audioCtx.state === 'suspended') { audioCtx.resume(); return; }
+    if (audioCtx.resume) audioCtx.resume();       // wx ctx 可能无 state，直接尝试恢复
+  } catch (e) {}
 }
 function tone(freq, dur, type, vol, slide) {
   if (!audioCtx || STORE.mute) return;
