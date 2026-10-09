@@ -75,6 +75,13 @@ function updatePlay(dt) {
     }
     /* 飘字横幅 */
     for (let i = play.banners.length - 1; i >= 0; i--) { play.banners[i].t -= dt; if (play.banners[i].t <= 0) play.banners.splice(i, 1); }
+    /* 进度落盘：无尽最佳实时刷新 + 每 10 秒自动存档（防中途退出丢进度） */
+    if (play.endless) {
+      var b0 = STORE.bestEndless;
+      if (!b0 || play.kills > b0.kills) STORE.bestEndless = { kills: play.kills, round: play.round, t: Math.floor(play.t) };
+    }
+    play.autosaveT = (play.autosaveT === undefined ? 10 : play.autosaveT) - dt;
+    if (play.autosaveT <= 0) { play.autosaveT = 10; saveStore(); }
     /* 死亡 / 通关流程 */
     if (player.deadT >= 0 && player.deadT > 1.9 && play.clearT <= 0) { endGameOver(); return; }
     if (play.clearT > 0) { play.clearT -= dt; if (play.clearT <= 0) { endClear(); return; } }
