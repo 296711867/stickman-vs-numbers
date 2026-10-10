@@ -17,6 +17,14 @@ function setup() {
     noLoop();
     setTimeout(runAutoTest, 60);
   }
+  /* 浏览器切后台自动暂停（防切标签页回来被围死；wx 运行时走 onHide 存档） */
+  try {
+    window.addEventListener('blur', autoPauseOnHide);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) autoPauseOnHide(); });
+  } catch (e) { /* wx 环境无 DOM 监听 */ }
+}
+function autoPauseOnHide() {
+  if (SCENE === 'play' && play && play.state === 'run') play.state = 'pause';
 }
 
 function windowResized() {
@@ -34,10 +42,12 @@ function draw() {
   let dt = rawDt;
   if (slowmoT > 0) { dt *= 0.32; slowmoT -= rawDt; }
   frameNo++;
+  sceneT++;   /* 场景帧计数（clear/allclear 画面的 Enter 防误触守卫依赖它；此前从未递增，快捷键一直是死的） */
   shakeAmt = Math.max(0, shakeAmt - 55 * rawDt);
   flashA = Math.max(0, flashA - 2.4 * rawDt);
 
   /* 全部画面（菜单/HUD/世界）统一套 letterbox 变换，逻辑分辨率恒为 1280×720 */
+  bgmScene(SCENE, !!boss);   /* BGM 随场景/BOSS 切换（战斗=battle、BOSS 活跃=boss、其余=menu；音频未就绪时空转） */
   push();
   translate(view.ox, view.oy); scale(view.s);
   switch (SCENE) {
@@ -50,6 +60,19 @@ function draw() {
     default: drawSceneFallback();
   }
   drawPortraitHint();
+  /* 轻提示 toast（任意场景顶层，最后 0.35s 淡出） */
+  if (toastT > 0) {
+    toastT -= rawDt;
+    const ta = clampN(toastT / 0.35, 0, 1);
+    push();
+    textAlign(CENTER, CENTER); textStyle(BOLD); textSize(17);
+    const tw = textWidth(toastTxt) + 44;
+    noStroke(); fill(0, 0, 0, 160 * ta);
+    rect(VW / 2 - tw / 2, VH - 120, tw, 40, 20);
+    fill(235, 240, 250, 235 * ta);
+    text(toastTxt, VW / 2, VH - 100);
+    pop();
+  }
   pop();
   pressed = {};
 }
@@ -63,8 +86,9 @@ function keyPressed(e) {
   const ev = e || window.event || {};
   const c = ev.code || '';
   if (c) { keys[c] = true; pressed[c] = true; }
-  if (c === 'KeyM') { STORE.mute = !STORE.mute; saveStore(); }
+  if (c === 'KeyM') { STORE.mute = !STORE.mute; saveStore(); showToast(STORE.mute ? '🔇 音效已关' : '🔊 音效已开'); }
   if (SCENE === 'play' && (c === 'KeyP' || c === 'Escape')) togglePause();
+  if (SCENE === 'play' && play && play.state === 'pause' && c === 'KeyR') { startPlay(curLv); sfx.ok(); return false; }
   if (SCENE === 'play' && play && play.state === 'levelup') {
     if (c === 'Digit1' || c === 'Numpad1') applyChoice(0);
     if (c === 'Digit2' || c === 'Numpad2') applyChoice(1);
@@ -188,9 +212,10 @@ function runAutoTest() {
     step(60 * 4, 'boss8-spawn');
     if (boss) {
       step(60 * 6, 'boss8-fight');
-      /* 双重生断言：反复打穿 HP，1 次真死 + 2 次复活 = 恰好 3 轮 */
+      /* 双重生断言：反复打穿 HP，1 次真死 + 2 次复活 = 恰好 3 轮（先清免疫门，phase 虚化/spawnT 会吞伤害） */
       let loops = 0;
       while (boss && boss.hp > 0 && loops < 10) {
+        boss.spawnT = 0; boss.ghostT = 0;
         boss.hp = 1;
         hurtBoss(5, false);
         loops++;
@@ -225,6 +250,7 @@ function runAutoTest() {
       let loops = 0;
       const seen = [pats0];
       while (boss && boss.hp > 0 && loops < 10) {
+        boss.spawnT = 0; boss.ghostT = 0;
         boss.hp = 1;
         hurtBoss(5, false);
         loops++;

@@ -1,0 +1,57 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:#333;overflow:hidden;height:100%}
+/* 模拟 iPhone 12/13 横屏逻辑分辨率 844x390，居中显示；运行时会把主画布位图拉伸铺满此区域 */
+#phone{position:relative;width:844px;height:390px;margin:40px auto;background:#000;outline:2px solid #666}
+#phone canvas{position:absolute;left:0;top:0;width:100%;height:100%}
+</style></head>
+<body>
+<div id="phone"></div>
+<script>window.__ERRS=[];window.onerror=function(m,s,l){window.__ERRS.push(m+' @'+l);};</script>
+<script>
+/* ---- wx mock：走 IS_WX=true 代码路径，参数取 iPhone 12/13 横屏 ---- */
+(function () {
+  var W = 844, H = 390, DPR = 3;
+  var store = {};
+  var mainCanvas = null;
+  var phone = document.getElementById('phone');
+  var handlers = { start: [], move: [], end: [], kd: [], ku: [] };
+  /* 递归 Proxy 桩：任何属性/方法调用都返回新桩（吞掉音频 API 调用） */
+  function stub() {
+    return new Proxy(function () {}, {
+      get: function (t, k) { if (k === Symbol.toPrimitive) return function () { return 0; }; return stub(); },
+      apply: function () { return stub(); },
+      set: function () { return true; }
+    });
+  }
+  window.wx = {
+    getSystemInfoSync: function () { return { windowWidth: W, windowHeight: H, pixelRatio: DPR, platform: 'devtools' }; },
+    createCanvas: function () {
+      var c = document.createElement('canvas');
+      /* 模拟微信运行时：主画布默认位图 = 屏幕物理像素（iPhone 12/13 DPR 3） */
+      c.width = W * DPR; c.height = H * DPR;
+      if (!mainCanvas) { mainCanvas = c; phone.appendChild(c); }
+      return c;
+    },
+    getStorageSync: function (k) { return store[k]; },
+    setStorageSync: function (k, v) { store[k] = v; },
+    createWebAudioContext: function () { return stub(); },
+    onTouchStart: function (fn) { handlers.start.push(fn); },
+    onTouchMove: function (fn) { handlers.move.push(fn); },
+    onTouchEnd: function (fn) { handlers.end.push(fn); },
+    onKeyDown: function (fn) { handlers.kd.push(fn); },
+    onKeyUp: function (fn) { handlers.ku.push(fn); },
+    onHide: function () {}, onUnload: function () {}, onWindowResize: function () {},
+    showShareMenu: function (o) { (window.__shareLog = window.__shareLog || []).push('showShareMenu'); },
+    onShareAppMessage: function (fn) { window.__shareGet = fn; },
+    onShareTimeline: function (fn) { window.__shareGetTimeline = fn; }
+  };
+  /* 测试用：派发合成触摸（逻辑像素坐标） */
+  window.__wxTap = function (x, y) {
+    var res = { touches: [{ clientX: x, clientY: y, clientZ: 0 }] };
+    handlers.start.forEach(function (f) { f(res); });
+    handlers.end.forEach(function (f) { f({}); });
+  };
+})();
+</script>
+<script>document.write('<script src="bundle.js?ts='+Date.now()+'"><\/script>');</script>
+</body></html>

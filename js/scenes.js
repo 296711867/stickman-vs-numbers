@@ -159,6 +159,17 @@ function drawPlay() {
 
   /* BOSS tele 预警线是屏幕系的，画在相机外（用世界坐标转屏幕：省事直接在世界里画了，此处略） */
   drawVignette();
+  /* 时钟冻结：全屏淡蓝脉动（敌人停走，BOSS 免疫） */
+  if (freezeT > 0) {
+    noStroke(); fill(120, 220, 255, 14 + Math.sin(frameNo * 0.2) * 6);
+    rect(0, 0, VW, VH);
+  }
+  /* 剩 1 心：红色脉动边框警示 */
+  if (player.hearts === 1 && player.deadT < 0 && play.clearT <= 0) {
+    noFill(); stroke(255, 60, 80, 60 + Math.sin(frameNo * 0.12) * 40); strokeWeight(12);
+    rect(6, 6, VW - 12, VH - 12, 20);
+    noStroke();
+  }
 
   /* 全屏闪白/红 */
   if (flashA > 0.5) { noStroke(); fill(flashC[0], flashC[1], flashC[2], 255 * (flashA - 0.5)); rect(0, 0, VW, VH); }
@@ -186,11 +197,12 @@ function drawPlay() {
 /* ---------- HUD ---------- */
 function drawHud() {
   push(); textStyle(BOLD);
-  /* 心 */
+  /* 心（剩 1 心时脉动提醒） */
   for (let i = 0; i < player.maxHearts; i++) {
     const filled = i < player.hearts;
+    const hs = filled && player.hearts === 1 ? 24 + Math.sin(frameNo * 0.25) * 3.5 : 24;
     if (filled) glowOn([255, 64, 96], 8);
-    heartShape(34 + i * 32, 36, 24, filled);
+    heartShape(34 + i * 32, 36, hs, filled);
     glowOff();
   }
   /* 等级 + 经验 */
@@ -224,6 +236,13 @@ function drawHud() {
     glowOn([255, 255, 255], 8);
     fill(255); textSize(32);
     text(fmtTime(rem), VW / 2, 34);
+    glowOff();
+  }
+  /* 冻结倒计时提示 */
+  if (freezeT > 0) {
+    glowOn([120, 220, 255], 12);
+    fill(160, 235, 255); textSize(20);
+    text('❄ 冻结 ' + freezeT.toFixed(1) + ' s', VW / 2, 100);
     glowOff();
   }
   /* 暂停按钮（右上角，触屏可点） */
@@ -287,7 +306,7 @@ function drawPause() {
   text('暂 停', VW / 2, 170);
   glowOff();
   neonButton('继续游戏', VW / 2 - 130, 250, 260, 56, () => togglePause(), [120, 220, 255]);
-  neonButton('重开本关', VW / 2 - 130, 326, 260, 56, () => startPlay(curLv), [255, 214, 0]);
+  neonButton('重开本关 (R)', VW / 2 - 130, 326, 260, 56, () => startPlay(curLv), [255, 214, 0]);
   neonButton('返回菜单', VW / 2 - 130, 402, 260, 56, () => { SCENE = 'select'; sceneT = 0; }, [255, 120, 140]);
   neonButton(STORE.mute ? '🔇 音效: 关' : '🔊 音效: 开', VW / 2 - 276, 486, 250, 50, () => { STORE.mute = !STORE.mute; saveStore(); sfx.sel(); }, [200, 200, 210], 16);
   neonButton(LOWFX ? '⚡ 性能模式: 开' : '✨ 性能模式: 关', VW / 2 + 26, 486, 250, 50, () => {
@@ -305,25 +324,13 @@ function drawTitle() {
   background(4, 5, 10);
   drawFloaters();
   push(); textAlign(CENTER, CENTER); textStyle(BOLD);
-  /* 主标题 */
+  /* 主标题（微信小游戏注册名：字狂潮） */
   push();
-  glowOn([255, 255, 255], 24);
-  fill(245, 245, 250); textSize(74);
-  text('火柴人 VS 数字', VW / 2, 196);
+  glowOn([255, 255, 255], 28);
+  fill(245, 245, 250); textSize(112);
+  text('字 狂 潮', VW / 2, 192);
   glowOff();
   pop();
-  /* 副标题彩色 */
-  const sub = '数 字 狂 潮';
-  const cols = [[57, 255, 128], [64, 224, 255], [255, 64, 106], [255, 214, 0]];
-  textSize(40);
-  for (let i = 0; i < sub.length; i++) {
-    if (sub[i] === ' ') continue;
-    const c = cols[i % 4];
-    glowOn(c, 16);
-    fill(c[0], c[1], c[2]);
-    text(sub[i], VW / 2 - 108 + i * 54, 272);
-    glowOff();
-  }
   /* 中央火柴人 + 铅笔环绕 */
   const px = VW / 2, py = 430;
   push();
@@ -507,7 +514,7 @@ function drawSelect() {
 /* ---------- 失败场景 ---------- */
 function updOver(dt) {
   updFloaters(dt);
-  if (kp('Enter')) { startPlay(curLv); sfx.ok(); }
+  if (kp('Enter') || kp('KeyR')) { startPlay(curLv); sfx.ok(); }
   if (kp('Escape')) { SCENE = 'select'; sceneT = 0; sfx.sel(); }
 }
 function drawOver() {
@@ -541,7 +548,13 @@ function drawOver() {
 let clearT2 = 0;
 function updClear(dt) {
   updFloaters(dt); clearT2 += dt;
-  if (kp('Enter') && sceneT > 30) { SCENE = 'select'; sceneT = 0; sfx.ok(); }
+  /* Enter = 主按钮：战役通关进下一关；全通/无下一关回选关；R = 重打本关 */
+  const hasNext = SCENE === 'clear' && curLv < LEVELS.length;
+  if (sceneT > 30 && kp('Enter')) {
+    if (hasNext) { startPlay(curLv + 1); sfx.ok(); }
+    else { SCENE = 'select'; sceneT = 0; sfx.ok(); }
+  }
+  if (sceneT > 30 && kp('KeyR')) { startPlay(curLv); sfx.ok(); }
   if (kp('Escape')) { SCENE = 'select'; sceneT = 0; sfx.sel(); }
 }
 function drawClear() {
