@@ -53,6 +53,9 @@ function draw() {
   switch (SCENE) {
     case 'title': updTitle(dt); drawTitle(); break;
     case 'select': updSelect(dt); drawSelect(); break;
+    case 'shop': updShop(dt); drawShop(); break;
+    case 'ach': updAch(dt); drawAch(); break;
+    case 'codex': updCodex(dt); drawCodex(); break;
     case 'play': updatePlay(dt); if (SCENE === 'play') drawPlay(); else drawSceneFallback(); break;
     case 'over': updOver(dt); drawOver(); break;
     case 'clear': updClear(dt); drawClear(); break;
@@ -348,6 +351,56 @@ function runAutoTest() {
     for (const t of ['milk', 'magnet', 'clock', 'bombI', 'gift', 'heart']) applyDrop(t, player.x + 10, player.y);
     for (let i = 0; i < 8; i++) applyChoice(0);
     step(60 * 3, 'drops');
+  });
+
+  /* 图鉴：标记幂等 / 未知种类拒收 / 里程碑发放 / 页面渲染 */
+  guard('codex', () => {
+    STORE.codex = { kinds: {}, bosses: {} };
+    STORE.codexRew = {};
+    const c0 = STORE.meta.chalk;
+    markCodexKind('num'); markCodexKind('num');
+    if (Object.keys(STORE.codex.kinds).length !== 1) log('codex: 重复标记（异常）');
+    markCodexKind('nope');
+    if (STORE.codex.kinds.nope) log('codex: 未知种类被记录（异常）');
+    for (const k of CODEX_KIND_ORDER) markCodexKind(k);
+    for (const b in BOSS_DEF) markCodexBoss(b);
+    if (!STORE.codexRew[1]) log('codex: 100% 里程碑未发放（异常）');
+    const gained = STORE.meta.chalk - c0;
+    if (gained !== 570) log('codex: 里程碑总额异常 ' + gained);
+    SCENE = 'codex';
+    try { updCodex(0.016); drawCodex(); } catch (e) { log('codex/page: ' + e); }
+    startPlay(1);
+  });
+
+  /* 成就：击杀解锁 / 奖励到账 / 幂等 / 成就页渲染 */
+  guard('ach', () => {
+    STORE.ach = {};
+    const c0 = STORE.meta.chalk;
+    achCheckKills(120);
+    if (!STORE.ach.k50 || !STORE.ach.k100) log('ach: 击杀成就未解锁（异常）');
+    if (STORE.ach.k300) log('ach: 未达 300 却解锁（异常）');
+    if (STORE.meta.chalk - c0 !== 110) log('ach: 奖励金额异常');
+    achCheckKills(150);
+    if (Object.keys(STORE.ach).length !== 2) log('ach: 未幂等（异常）');
+    SCENE = 'ach';
+    try { updAch(0.016); drawAch(); } catch (e) { log('ach/page: ' + e); }
+    startPlay(1);
+  });
+
+  /* 局外成长：购买 / 扣费 / 价格递增 / 属性生效 / 结算公式 / 商店渲染 */
+  guard('meta', () => {
+    STORE.meta.chalk = 1000;
+    const lv0 = metaLv('heart'), cost0 = metaCost('heart');
+    if (!buyMeta('heart')) log('meta: 购买失败（异常）');
+    if (metaLv('heart') !== lv0 + 1 || STORE.meta.chalk !== 1000 - cost0) log('meta: 扣费异常');
+    if (metaCost('heart') <= cost0) log('meta: 价格未随等级上涨（异常）');
+    startPlay(1);
+    if (player.maxHearts !== 5 + metaLv('heart')) log('meta: 心上限未生效（异常）');
+    const g = 1 + 0.10 * metaLv('gain');
+    if (calcChalk(100, false) !== Math.round(100 * g)) log('meta: 结算公式异常');
+    SCENE = 'shop';
+    try { updShop(0.016); drawShop(); } catch (e) { log('meta/shop: ' + e); }
+    startPlay(1);
   });
 
   /* 武器进化：满级铅笔+攻速被动 → 进化卡必出 → 进化后 evolved 且无异常 */

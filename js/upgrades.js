@@ -77,6 +77,7 @@ function applyChoice(idx) {
     const w = player.weapons.find(x => x.id === c.id);
     if (w) {
       w.evolved = true;
+      grantAch('evo1');
       popText(player.x, player.y - 66, '进化！' + WDEF[c.id].evo.name, [255, 214, 0], 24);
       burst(player.x, player.y - 20, [255, 214, 0], 26, 260);
       ringFx(player.x, player.y - 18, 14, 90, 0.6, [255, 214, 0], 4);
@@ -87,6 +88,8 @@ function applyChoice(idx) {
     const owned = player.weapons.find(w => w.id === c.id);
     if (owned) owned.lv = c.lv;
     else player.weapons.push({ id: c.id, lv: 1, cd: 0.3, ang: rnd(0, TWO_PI), sweepT: 0 });
+    if (player.weapons.length >= 4) grantAch('w4');
+    if (player.weapons.some(w => w.lv >= 5)) grantAch('lv5');
     popText(player.x, player.y - 60, WDEF[c.id].name + ' Lv' + c.lv + '!', WDEF[c.id].col, 20);
   } else if (c.kind === 'p') {
     player.passives[c.id] = c.lv;

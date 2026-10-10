@@ -32,6 +32,8 @@ function startPlay(lv) {
 }
 
 function endGameOver() {
+  play.chalkEarned = calcChalk(play.kills, false);
+  STORE.meta.chalk += play.chalkEarned;
   if (play.endless) {
     const b = STORE.bestEndless;
     if (!b || play.kills > b.kills) STORE.bestEndless = { kills: play.kills, round: play.round, t: Math.floor(play.t) };
@@ -46,6 +48,11 @@ function endGameOver() {
   SCENE = 'over'; sceneT = 0;
 }
 function endClear() {
+  play.chalkEarned = calcChalk(play.kills, true);
+  STORE.meta.chalk += play.chalkEarned;
+  markCodexBoss(LEVELS[curLv - 1].boss);
+  grantAch('boss1');
+  if (!(play.hurtCount > 0)) grantAch('nort');
   STORE.best[curLv] = Math.max(STORE.best[curLv] || 0, play.kills);
   if (curLv < LEVELS.length) STORE.unlocked = Math.max(STORE.unlocked, curLv + 1);
   saveStore();
@@ -367,6 +374,9 @@ function drawTitle() {
   fill(160, 165, 180, 200); textSize(14); textStyle(NORMAL);
   text('俯视角割草肉鸽 · 数字就是血量，挨一下 -1', VW / 2, 636);
   text('世界观联动：《火柴人大战数学》', VW / 2, 660);
+  fill(120, 125, 140, 210); textSize(12);
+  textAlign(RIGHT, TOP);
+  text('v2.2 · 收集图鉴', VW - 14, 8);
   pop();
 }
 
@@ -378,6 +388,9 @@ function updSelect(dt) {
   if (kp('Escape')) { SCENE = 'title'; sceneT = 0; sfx.sel(); }
   if (kp('Enter')) { if (STORE.unlocked >= 1) { startPlay(Math.min(STORE.unlocked, LEVELS.length)); sfx.ok(); } }
   if (kp('KeyE')) { startPlay(0); sfx.ok(); }
+  if (kp('KeyB')) { SCENE = 'shop'; sceneT = 0; sfx.sel(); }
+  if (kp('KeyC')) { SCENE = 'ach'; sceneT = 0; sfx.sel(); }
+  if (kp('KeyT')) { SCENE = 'codex'; sceneT = 0; sfx.sel(); }
   for (let i = 1; i <= Math.min(9, LEVELS.length); i++) {
     if (kp('Digit' + i) && i <= STORE.unlocked) { startPlay(i); sfx.ok(); }
   }
@@ -398,7 +411,7 @@ function drawSelect() {
   fill(200, 205, 215); textSize(15.5); textStyle(NORMAL);
   text('每关 300 秒，活到最后击碎 BOSS 即通关', VW / 2, 116);
   fill(150, 158, 175, 220); textSize(13);
-  const keyHint = LEVELS.length >= 10 ? '数字键 1~9、0 直达已解锁关卡 · E 无尽模式' : '数字键直达已解锁关卡 · E 无尽模式';
+  const keyHint = LEVELS.length >= 10 ? '数字键 1~9、0 直达 · E 无尽 · B 强化 · C 成就 · T 图鉴' : '数字键直达已解锁关卡 · E 无尽 · B 强化 · C 成就 · T 图鉴';
   text(keyHint, VW / 2, 140);
   textStyle(BOLD);
 
@@ -495,12 +508,15 @@ function drawSelect() {
   const gridBottom = y0 + rows * ch + (rows - 1) * 18;
   const btnY = Math.min(gridBottom + 18, VH - 96);
   const eb = STORE.bestEndless;
-  neonButton('返回', 30, btnY, 120, 52, () => { SCENE = 'title'; sceneT = 0; sfx.sel(); }, [200, 200, 210], 17);
+  neonButton('返回', 30, btnY, 100, 52, () => { SCENE = 'title'; sceneT = 0; sfx.sel(); }, [200, 200, 210], 16);
+  neonButton('📖 图鉴', 146, btnY, 100, 52, () => { SCENE = 'codex'; sceneT = 0; sfx.sel(); }, [140, 200, 255], 16);
+  neonButton('🏆 成就', 262, btnY, 100, 52, () => { SCENE = 'ach'; sceneT = 0; sfx.sel(); }, [255, 214, 0], 16);
+  neonButton('🔧 强化', VW - 150, btnY, 120, 52, () => { SCENE = 'shop'; sceneT = 0; sfx.sel(); }, [205, 160, 255], 16);
   neonButton(
     '♾ 无尽模式' + (eb ? ' · 最佳 ' + eb.kills + ' 杀 / 第 ' + eb.round + ' 轮' : ' · 300秒一轮BOSS，轮轮加强，看你能撑几轮'),
-    VW / 2 - 330, btnY, 660, 52,
+    378, btnY, VW - 378 - 150 - 18, 52,
     () => { startPlay(0); sfx.ok(); },
-    [205, 160, 255], 19);
+    [205, 160, 255], 18);
   /* 近期战绩 */
   const log = STORE.endlessLog || [];
   if (log.length) {
@@ -529,15 +545,19 @@ function drawOver() {
   if (play.endless) {
     text('无尽模式 · 止步第 ' + play.round + ' 轮', VW / 2, 260);
     fill(255, 214, 0); textSize(24);
-    text('击杀 ' + play.kills + '  ·  存活 ' + fmtTime(play.t), VW / 2, 320);
+    text('击杀 ' + play.kills + '  ·  存活 ' + fmtTime(play.t), VW / 2, 318);
+    fill(205, 160, 255); textSize(17);
+    text('粉笔 +' + (play.chalkEarned || 0), VW / 2, 350);
     const be = STORE.bestEndless;
-    if (be) { fill(180, 185, 200); textSize(16); text('最佳：击杀 ' + be.kills + ' · 第 ' + be.round + ' 轮', VW / 2, 356); }
+    if (be) { fill(180, 185, 200); textSize(16); text('最佳：击杀 ' + be.kills + ' · 第 ' + be.round + ' 轮', VW / 2, 382); }
   } else {
     text('被数字大军淹没在 ' + LEVELS[curLv - 1].name, VW / 2, 260);
     fill(255, 214, 0); textSize(24);
-    text('本局击杀 ' + play.kills + '  ·  到达 ' + fmtTime(Math.min(300, play.t)), VW / 2, 320);
+    text('本局击杀 ' + play.kills + '  ·  到达 ' + fmtTime(Math.min(300, play.t)), VW / 2, 318);
+    fill(205, 160, 255); textSize(17);
+    text('粉笔 +' + (play.chalkEarned || 0), VW / 2, 350);
     const best = STORE.best[curLv];
-    if (best) { fill(180, 185, 200); textSize(16); text('最佳击杀 ' + best, VW / 2, 356); }
+    if (best) { fill(180, 185, 200); textSize(16); text('最佳击杀 ' + best, VW / 2, 382); }
   }
   neonButton('再战一局', VW / 2 - 280, 430, 260, 58, () => { startPlay(curLv); sfx.ok(); }, [255, 214, 0]);
   neonButton('返回选关', VW / 2 + 20, 430, 260, 58, () => { SCENE = 'select'; sceneT = 0; sfx.sel(); }, [200, 200, 210]);
@@ -568,6 +588,8 @@ function drawClear() {
   glowOff();
   noStroke(); fill(230, 232, 240); textSize(21);
   text('击碎 ' + BOSS_DEF[L.boss].name + ' · 本局击杀 ' + play.kills, VW / 2, 236);
+  fill(205, 160, 255); textSize(17);
+  text('粉笔 +' + (play.chalkEarned || 0), VW / 2, 270);
   if (curLv < LEVELS.length) {
     neonButton('进入下一关 ▶', VW / 2 - 280, 330, 260, 60, () => { startPlay(curLv + 1); sfx.ok(); }, L.col);
     neonButton('返回选关', VW / 2 + 20, 330, 260, 60, () => { SCENE = 'select'; sceneT = 0; sfx.sel(); }, [200, 200, 210]);
@@ -608,6 +630,7 @@ function drawAllclear() {
     '原点归零，数字大军化作漫天粉笔屑……',
     '「零即是无限。火柴人，你就是新的原点。」',
     best10 ? '黑板世界记住了你的 ' + best10 + ' 次击杀。' : '黑板世界重归寂静。',
+    '粉笔 +' + ((play && play.chalkEarned) || 0) + ' 入账。',
     '',
     '—— 正传《火柴人大战数学》第二季《乘方女王》伏笔，在此应验 ——',
   ];
@@ -618,5 +641,251 @@ function drawAllclear() {
   }
   if (blink() && sceneT > 60) { noStroke(); fill(255, 255, 255, 210); textStyle(BOLD); textSize(18); text('点击 / 回车 返回选关', VW / 2, 662); }
   uiRects.push({ x: 0, y: 0, w: VW, h: VH, cb: () => { SCENE = 'select'; sceneT = 0; } });
+  pop();
+}
+
+/* ---------- 永久强化商店（全局货币：粉笔） ---------- */
+const META_ORDER = ['heart', 'spd', 'luck', 'atk', 'mag', 'xp', 'boot', 'gain'];
+function updShop(dt) {
+  updFloaters(dt);
+  if (kp('Escape') || kp('Enter')) { SCENE = 'select'; sceneT = 0; sfx.sel(); }
+  for (let i = 0; i < META_ORDER.length; i++) {
+    if (kp('Digit' + (i + 1))) buyMeta(META_ORDER[i]);
+  }
+}
+function drawShop() {
+  background(8, 6, 14);
+  drawFloaters();
+  push(); textAlign(CENTER, CENTER); textStyle(BOLD);
+  glowOn([205, 160, 255], 16);
+  fill(215, 175, 255); textSize(40);
+  text('永 久 强 化', VW / 2, 60);
+  glowOff();
+  noStroke(); fill(205, 160, 255); textSize(17); textStyle(NORMAL);
+  text('🖍 粉笔 ' + STORE.meta.chalk + ' · 每局按击杀结算', VW / 2, 100);
+  textStyle(BOLD);
+
+  const n = META_ORDER.length;
+  const cols = 4;
+  const cw = 274, ch = 218, gap = 22;
+  const x0 = VW / 2 - (cols * cw + (cols - 1) * gap) / 2, y0 = 136;
+  for (let i = 0; i < n; i++) {
+    const id = META_ORDER[i], d = META_DEF[id];
+    const lv = metaLv(id), cost = metaCost(id);
+    const row = Math.floor(i / cols), col = i % cols;
+    const x = x0 + col * (cw + gap), y = y0 + row * (ch + 20);
+    const maxed = lv >= d.max, afford = STORE.meta.chalk >= cost;
+    push();
+    noFill();
+    stroke(d.col[0], d.col[1], d.col[2], maxed ? 90 : (afford ? 230 : 110));
+    strokeWeight(afford && !maxed ? 3 : 2);
+    if (afford && !maxed) glowOn(d.col, 10);
+    rect(x, y, cw, ch, 14);
+    glowOff();
+    if (afford && !maxed) { noStroke(); fill(d.col[0], d.col[1], d.col[2], 18); rect(x, y, cw, ch, 14); }
+    /* 图标 + 名称 + 等级 */
+    push(); glowOn(d.col, 10); drawIcon(d.icon, x + 40, y + 42, 40, d.col); glowOff(); pop();
+    noStroke(); fill(d.col[0], d.col[1], d.col[2]); textAlign(LEFT, CENTER); textSize(21);
+    text(d.name, x + 72, y + 36);
+    fill(255, 255, 255, 200); textSize(14);
+    text('Lv ' + lv + ' / ' + d.max, x + 72, y + 60);
+    /* 效果说明 */
+    fill(220, 224, 235); textSize(14.5); textStyle(NORMAL);
+    text(d.tip, x + 22, y + 104);
+    textStyle(BOLD);
+    /* 等级格 */
+    for (let k = 0; k < d.max; k++) {
+      noStroke();
+      if (k < lv) fill(d.col[0], d.col[1], d.col[2]); else fill(255, 255, 255, 40);
+      rect(x + 22 + k * 26, y + 132, 18, 10, 3);
+    }
+    /* 价格 / 满级 */
+    textAlign(CENTER, CENTER);
+    if (maxed) {
+      noStroke(); fill(255, 214, 0); textSize(17);
+      text('★ 已满级', x + cw / 2, y + ch - 26);
+    } else {
+      noStroke(); fill(afford ? 255 : 150, afford ? 214 : 155, afford ? 0 : 170); textSize(18);
+      text('🖍 ' + cost, x + cw / 2, y + ch - 26);
+    }
+    pop();
+    if (!maxed) uiRects.push({ x, y, w: cw, h: ch, cb: () => buyMeta(id) });
+  }
+  /* 底部返回 */
+  const rows = Math.ceil(n / cols);
+  const by = Math.min(y0 + rows * (ch + 20) + 4, VH - 76);
+  neonButton('返回选关 (Esc)', VW / 2 - 130, by, 260, 52, () => { SCENE = 'select'; sceneT = 0; sfx.sel(); }, [200, 200, 210], 17);
+  pop();
+}
+
+/* ---------- 成就页 + 存档导入导出（v2.1） ---------- */
+function updAch(dt) {
+  updFloaters(dt);
+  if (kp('Escape') || kp('Enter')) { SCENE = 'select'; sceneT = 0; sfx.sel(); }
+}
+function drawAch() {
+  background(10, 8, 5);
+  drawFloaters();
+  push(); textAlign(CENTER, CENTER); textStyle(BOLD);
+  glowOn([255, 214, 0], 16);
+  fill(255, 220, 120); textSize(40);
+  text('成 就', VW / 2, 56);
+  glowOff();
+  const done = ACH_ORDER.filter(id => STORE.ach[id]).length;
+  noStroke(); fill(230, 225, 210); textSize(16); textStyle(NORMAL);
+  text('已解锁 ' + done + ' / ' + ACH_ORDER.length + ' · 成就奖励以粉笔发放', VW / 2, 94);
+  textStyle(BOLD);
+  const cols = 2, cw = 560, ch = 86, gap = 20;
+  const x0 = VW / 2 - (cols * cw + gap) / 2, y0 = 120;
+  for (let i = 0; i < ACH_ORDER.length; i++) {
+    const id = ACH_ORDER[i], d = ACH_DEF[id];
+    const got = !!STORE.ach[id];
+    const row = Math.floor(i / cols), col = i % cols;
+    const x = x0 + col * (cw + gap), y = y0 + row * (ch + 14);
+    push();
+    noFill();
+    stroke(got ? 255 : 130, got ? 214 : 132, got ? 0 : 145, got ? 220 : 90);
+    strokeWeight(got ? 2.5 : 1.5);
+    if (got) glowOn([255, 214, 0], 8);
+    rect(x, y, cw, ch, 12);
+    glowOff();
+    if (got) { noStroke(); fill(255, 214, 0, 22); rect(x, y, cw, ch, 12); }
+    textAlign(CENTER, CENTER);
+    noStroke(); fill(got ? 255 : 120, got ? 214 : 124, got ? 0 : 136); textSize(24);
+    text(got ? '🏆' : '🔒', x + 40, y + ch / 2);
+    textAlign(LEFT, CENTER);
+    noStroke(); fill(got ? 255 : 200, got ? 220 : 202, got ? 120 : 212); textSize(19);
+    text(d.name, x + 74, y + 28);
+    fill(205, 208, 220); textSize(14); textStyle(NORMAL);
+    text(d.tip, x + 74, y + 56);
+    textStyle(BOLD);
+    textAlign(RIGHT, CENTER);
+    fill(got ? 120 : 255, got ? 210 : 160, got ? 130 : 255);
+    textSize(15);
+    text((got ? '已获得 ' : '奖励 🖍 ') + d.reward, x + cw - 18, y + ch / 2);
+    pop();
+  }
+  const rows = Math.ceil(ACH_ORDER.length / cols);
+  const by = Math.min(y0 + rows * (ch + 14) + 8, VH - 76);
+  neonButton('返回选关 (Esc)', 30, by, 200, 52, () => { SCENE = 'select'; sceneT = 0; sfx.sel(); }, [200, 200, 210], 17);
+  neonButton('📤 导出存档', VW / 2 - 220, by, 200, 52, exportSave, [120, 220, 255], 16);
+  neonButton('📥 导入存档', VW / 2 + 20, by, 200, 52, importSave, [160, 220, 160], 16);
+  pop();
+}
+function exportSave() {
+  const data = JSON.stringify({ v: 2, exportedAt: Date.now(), store: STORE });
+  const done = () => showToast('存档已复制到剪贴板');
+  try {
+    navigator.clipboard.writeText(data).then(done, () => fallbackCopy(data, done));
+  } catch (e) { fallbackCopy(data, done); }
+}
+function fallbackCopy(text, done) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    done();
+  } catch (e) { showToast('复制失败'); }
+}
+function importSave() {
+  const s = prompt('粘贴存档 JSON（导入会覆盖当前进度）：');
+  if (!s) return;
+  try {
+    const p = JSON.parse(s);
+    const st = p && p.store ? p.store : p;
+    if (!st || !(st.unlocked >= 1)) throw new Error('bad');
+    STORE.unlocked = st.unlocked;
+    STORE.best = st.best || {};
+    STORE.mute = !!st.mute; STORE.lowfx = !!st.lowfx;
+    STORE.bestEndless = st.bestEndless || null;
+    STORE.endlessLog = st.endlessLog || [];
+    STORE.meta = st.meta && st.meta.lv ? st.meta : { chalk: 0, lv: {} };
+    STORE.ach = st.ach || {};
+    STORE.codex = st.codex && st.codex.kinds ? st.codex : { kinds: {}, bosses: {} };
+    STORE.codexRew = st.codexRew || {};
+    saveStore(); sfx.ok();
+    showToast('存档导入成功');
+  } catch (e) { showToast('存档格式无效'); }
+}
+
+/* ---------- 怪物图鉴页（v2.2） ---------- */
+function updCodex(dt) {
+  updFloaters(dt);
+  if (kp('Escape') || kp('Enter')) { SCENE = 'select'; sceneT = 0; sfx.sel(); }
+}
+function drawCodex() {
+  background(6, 8, 12);
+  drawFloaters();
+  push(); textAlign(CENTER, CENTER); textStyle(BOLD);
+  glowOn([140, 200, 255], 16);
+  fill(170, 215, 255); textSize(36);
+  text('怪 物 图 鉴', VW / 2, 42);
+  glowOff();
+  const total = CODEX_KIND_ORDER.length + Object.keys(BOSS_DEF).length;
+  let n = 0;
+  for (const k of CODEX_KIND_ORDER) if (STORE.codex.kinds[k]) n++;
+  for (const b in STORE.codex.bosses) if (STORE.codex.bosses[b]) n++;
+  noStroke(); fill(200, 210, 230); textSize(15); textStyle(NORMAL);
+  text('已收录 ' + n + ' / ' + total + '（' + Math.round((n / total) * 100) + '%） · 25/50/75/100% 里程碑有粉笔奖励', VW / 2, 74);
+  textStyle(BOLD);
+  textAlign(RIGHT, TOP);
+  fill(150, 158, 175, 210); textSize(13);
+  text('Esc 返回选关', VW - 14, 8);
+  textAlign(CENTER, CENTER); textStyle(BOLD);
+
+  const cw = 236, gap = 12, x0 = VW / 2 - (5 * cw + 4 * gap) / 2;
+  /* 怪物区 */
+  noStroke(); fill(140, 200, 255, 200); textSize(15);
+  text('—— 怪 物 ——', VW / 2, 106);
+  for (let i = 0; i < CODEX_KIND_ORDER.length; i++) {
+    const id = CODEX_KIND_ORDER[i], kd = CODEX_KINDS[id];
+    const got = !!STORE.codex.kinds[id];
+    const col = got ? (id === 'num' ? [140, 255, 170] : (KIND_COL[id] || [235, 235, 245])) : [54, 58, 70];
+    const row = Math.floor(i / 5), c = i % 5;
+    const x = x0 + c * (cw + gap), y = 120 + row * 128;
+    push();
+    noFill(); stroke(col[0], col[1], col[2], got ? 210 : 70); strokeWeight(got ? 2.5 : 1.5);
+    if (got) glowOn(col, 9);
+    rect(x, y, cw, 118, 12);
+    glowOff();
+    textAlign(CENTER, CENTER);
+    noStroke(); fill(col[0], col[1], col[2], got ? 255 : 90); textSize(38);
+    text(CODEX_CHAR[id], x + cw / 2, y + 40);
+    fill(got ? 235 : 112, got ? 238 : 114, got ? 246 : 124, got ? 230 : 80); textSize(15);
+    text(got ? kd.name : '？？？', x + cw / 2, y + 78);
+    if (got) {
+      fill(160, 168, 185); textSize(12); textStyle(NORMAL);
+      text(kd.tip, x + cw / 2, y + 100);
+      textStyle(BOLD);
+    }
+    pop();
+  }
+  /* BOSS 区 */
+  noStroke(); fill(255, 120, 140, 210); textSize(15);
+  text('—— BOSS ——', VW / 2, 520);
+  const bKeys = Object.keys(BOSS_DEF);
+  for (let i = 0; i < bKeys.length; i++) {
+    const key = bKeys[i], d = BOSS_DEF[key];
+    const got = !!STORE.codex.bosses[key];
+    const col = got ? d.col : [54, 58, 70];
+    const row = Math.floor(i / 5), c = i % 5;
+    const x = x0 + c * (cw + gap), y = 532 + row * 90;
+    const lvTag = (LEVELS.find(l => l.boss === key) || {}).tag || '';
+    push();
+    noFill(); stroke(col[0], col[1], col[2], got ? 220 : 70); strokeWeight(got ? 2.5 : 1.5);
+    if (got) glowOn(col, 10);
+    rect(x, y, cw, 82, 12);
+    glowOff();
+    textAlign(CENTER, CENTER);
+    noStroke(); fill(col[0], col[1], col[2], got ? 255 : 90); textSize(30);
+    text(d.char, x + 36, y + 41);
+    textAlign(LEFT, CENTER);
+    fill(got ? 240 : 112, got ? 242 : 114, got ? 250 : 124, got ? 235 : 80); textSize(17);
+    text(got ? d.name : '？？？', x + 68, y + 33);
+    fill(160, 168, 185); textSize(12); textStyle(NORMAL);
+    text(got ? lvTag : '击败后收录', x + 68, y + 58);
+    textStyle(BOLD);
+    pop();
+  }
   pop();
 }

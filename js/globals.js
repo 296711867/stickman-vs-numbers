@@ -49,18 +49,150 @@ let player = null, play = null;
 let enemies = [], projs = [], dusts = [], drops = [], puddles = [];
 let boss = null, eid = 0;
 
-/* ---------- 存档 ---------- */
-let STORE = { unlocked: 1, best: {}, mute: false, bestEndless: null, endlessLog: [] };
+/* ---------- 存档（v2 独立存档位；首次运行从 v1 迁移进度，不回写 v1） ---------- */
+let STORE = { unlocked: 1, best: {}, mute: false, bestEndless: null, endlessLog: [], meta: { chalk: 0, lv: {} }, ach: {}, codex: { kinds: {}, bosses: {} }, codexRew: {} };
 function saveStore() {
-  try { localStorage.setItem('svsn_v1', JSON.stringify(STORE)); } catch (e) { /* file:// 下可能受限 */ }
+  try { localStorage.setItem('svsn_v2', JSON.stringify(STORE)); } catch (e) { /* file:// 下可能受限 */ }
 }
 function loadStore() {
   try {
-    const s = localStorage.getItem('svsn_v1');
-    if (s) { const p = JSON.parse(s); if (p && p.unlocked >= 1) STORE = Object.assign(STORE, p); }
+    const s = localStorage.getItem('svsn_v2');
+    if (s) {
+      const p = JSON.parse(s);
+      if (p && p.unlocked >= 1) {
+        STORE = Object.assign(STORE, p);
+        if (!STORE.meta) STORE.meta = { chalk: 0, lv: {} };
+        if (!STORE.meta.lv) STORE.meta.lv = {};
+        if (!STORE.ach) STORE.ach = {};
+        if (!STORE.codex) STORE.codex = { kinds: {}, bosses: {} };
+        if (!STORE.codexRew) STORE.codexRew = {};
+      }
+    } else {
+      /* 首次运行：迁移 v1 进度（解锁/最佳/无尽战绩/设置），粉笔从 0 起 */
+      const old = localStorage.getItem('svsn_v1');
+      if (old) {
+        try {
+          const p1 = JSON.parse(old);
+          if (p1 && p1.unlocked >= 1) {
+            STORE.unlocked = p1.unlocked; STORE.best = p1.best || {};
+            STORE.mute = !!p1.mute; STORE.lowfx = !!p1.lowfx;
+            STORE.bestEndless = p1.bestEndless || null; STORE.endlessLog = p1.endlessLog || [];
+          }
+        } catch (e) { /* 忽略 */ }
+      }
+    }
   } catch (e) { /* 忽略 */ }
   LOWFX = !!STORE.lowfx;
 }
+
+/* ---------- 收集图鉴（v2.2：首杀点亮，里程碑发粉笔） ---------- */
+const CODEX_KIND_ORDER = ['num', 'plus', 'minus', 'mul', 'div', 'sqrt', 'phi', 'inf', 'neg', 'frac', 'ghost', 'sin', 'cos', 'elite'];
+const CODEX_KINDS = {
+  num: { name: '数字兵', tip: '头顶数字就是血量，越小越快' },
+  plus: { name: '加号兵', tip: '死亡时治疗周围同伴' },
+  minus: { name: '减号兵', tip: '减速光环，贴身危险' },
+  mul: { name: '乘号兵', tip: '死亡分裂成两只' },
+  div: { name: '除号兵', tip: '远程狙击，优先解决' },
+  sqrt: { name: '根号兵', tip: '护盾弹开一次攻击' },
+  phi: { name: 'φ 兵', tip: '蛇形突进，走位刁钻' },
+  inf: { name: '∞ 兵', tip: '死亡后原地复活一次' },
+  neg: { name: '负数兵', tip: '免疫击退，硬冲到底' },
+  frac: { name: '分数兵', tip: '死亡一分为二' },
+  ghost: { name: '幻影数', tip: '受击瞬移，飘忽不定' },
+  sin: { name: '∫ 兵', tip: '正弦波弹道弹幕' },
+  cos: { name: 'Σ 兵', tip: '环绕弹环，围杀玩家' },
+  elite: { name: '精英数字', tip: '双位数 [10]~[40]，带加速光环' },
+};
+const CODEX_CHAR = Object.assign({ num: '7', elite: '[!]' }, { plus: '+', minus: '−', mul: '×', div: '÷', sqrt: '√', phi: 'φ', inf: '∞', neg: '−', frac: '½', ghost: '?', sin: '∫', cos: 'Σ' });
+function markCodexKind(k) {
+  if (!k || !CODEX_KINDS[k] || STORE.codex.kinds[k]) return;
+  STORE.codex.kinds[k] = true;
+  codexMilestone();
+}
+function markCodexBoss(key) {
+  if (!key || !BOSS_DEF[key] || STORE.codex.bosses[key]) return;
+  STORE.codex.bosses[key] = true;
+  codexMilestone();
+}
+function codexMilestone() {
+  const total = CODEX_KIND_ORDER.length + Object.keys(BOSS_DEF).length;
+  let n = 0;
+  for (const k of CODEX_KIND_ORDER) if (STORE.codex.kinds[k]) n++;
+  for (const b in STORE.codex.bosses) if (STORE.codex.bosses[b]) n++;
+  const pct = n / total;
+  for (const [p, r] of [[0.25, 40], [0.5, 80], [0.75, 150], [1, 300]]) {
+    if (pct >= p && !STORE.codexRew[p]) {
+      STORE.codexRew[p] = true;
+      STORE.meta.chalk += r;
+      saveStore();
+      showToast('📖 图鉴完成度 ' + Math.round(p * 100) + '%！粉笔 +' + r);
+    }
+  }
+}
+
+/* ---------- 成就（v2.1：奖励以粉笔发放） ---------- */
+const ACH_DEF = {
+  k50: { name: '初出茅庐', tip: '单局击杀 ≥ 50', reward: 30 },
+  k100: { name: '百人斩', tip: '单局击杀 ≥ 100', reward: 80 },
+  k300: { name: '杀戮机器', tip: '单局击杀 ≥ 300', reward: 200 },
+  evo1: { name: '笔锋觉醒', tip: '首次进化武器', reward: 60 },
+  w4: { name: '全武装', tip: '同时持有 4 把武器', reward: 80 },
+  lv5: { name: '磨到满级', tip: '把任意武器升到 Lv5', reward: 60 },
+  boss1: { name: '弑君者', tip: '首次击碎 BOSS', reward: 100 },
+  nort: { name: '毫发无伤', tip: '不受伤通关任意一关', reward: 200 },
+  end2: { name: '轮回行者', tip: '无尽模式进入第 2 轮', reward: 120 },
+  end3: { name: '永恒课堂', tip: '无尽模式进入第 3 轮', reward: 250 },
+};
+const ACH_ORDER = Object.keys(ACH_DEF);
+function grantAch(id) {
+  const d = ACH_DEF[id];
+  if (!d || STORE.ach[id]) return false;
+  STORE.ach[id] = true;
+  STORE.meta.chalk += d.reward;
+  saveStore();
+  sfx.gift();
+  showToast('🏆 成就「' + d.name + '」 粉笔 +' + d.reward);
+  return true;
+}
+function achCheckKills(k) {
+  if (k >= 50) grantAch('k50');
+  if (k >= 100) grantAch('k100');
+  if (k >= 300) grantAch('k300');
+}
+
+/* ---------- 局外成长（全局货币：粉笔） ---------- */
+/* 粉笔按局结算获得：击杀×1 + 通关奖励 100，「聚沙成塔」按 % 加成 */
+function metaLv(id) { return (STORE.meta && STORE.meta.lv && STORE.meta.lv[id]) || 0; }
+function metaCost(id) {
+  const d = META_DEF[id];
+  return Math.round(d.base * Math.pow(d.step, metaLv(id)));
+}
+function buyMeta(id) {
+  const d = META_DEF[id];
+  if (!d || metaLv(id) >= d.max) { showToast('已满级'); return false; }
+  const c = metaCost(id);
+  if (STORE.meta.chalk < c) { showToast('粉笔不足（还差 ' + (c - STORE.meta.chalk) + '）'); return false; }
+  STORE.meta.chalk -= c;
+  STORE.meta.lv[id] = metaLv(id) + 1;
+  saveStore();
+  sfx.gift();
+  return true;
+}
+/* 一局结束的粉笔结算（cleared=通关 BOSS） */
+function calcChalk(kills, cleared) {
+  return Math.round((kills + (cleared ? 100 : 0)) * (1 + 0.10 * metaLv('gain')));
+}
+const META_DEF = {
+  heart: { name: '心之容器', tip: '开局心血上限 +1', max: 3, base: 80, step: 2.4, col: [255, 64, 96], icon: 'heart' },
+  spd: { name: '轻快步伐', tip: '移动速度 +4%', max: 5, base: 40, step: 2.0, col: [110, 255, 140], icon: 'speed' },
+  luck: { name: '幸运星', tip: '道具掉率 +10%', max: 5, base: 50, step: 2.0, col: [255, 214, 0], icon: 'luck' },
+  atk: { name: '磨尖笔尖', tip: '所有武器冷却 -4%', max: 5, base: 60, step: 2.0, col: [255, 170, 70], icon: 'atk' },
+  mag: { name: '磁力搅拌', tip: '经验拾取范围 +15%', max: 3, base: 30, step: 1.9, col: [255, 150, 200], icon: 'magnet' },
+  xp: { name: '速记口诀', tip: '经验获取 +8%', max: 5, base: 45, step: 2.0, col: [120, 220, 255], icon: 'chalk' },
+  boot: { name: '预习卷轴', tip: '开局等级 +1（成长更快）', max: 2, base: 150, step: 2.4, col: [170, 120, 255], icon: 'gift' },
+  gain: { name: '聚沙成塔', tip: '粉笔结算 +10%', max: 5, base: 60, step: 2.1, col: [205, 160, 255], icon: 'area' },
+};
+
 
 /* ---------- 小工具 ---------- */
 /* 当前关卡主题（无尽模式按轮数轮换场景） */

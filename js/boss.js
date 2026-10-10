@@ -86,7 +86,10 @@ function killBoss() {
   /* 无尽模式：不掉通关，而是推进轮次、回血、换场景 */
   if (play.endless) {
     boss = null;
+    markCodexBoss(LEVELS[(play.round - 2 + LEVELS.length) % LEVELS.length].boss);
     play.round++;
+    if (play.round >= 2) grantAch('end2');
+    if (play.round >= 3) grantAch('end3');
     play.roundT = 0;
     play.interT = 2.5;
     player.hearts = Math.min(player.maxHearts, player.hearts + 1);

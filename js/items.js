@@ -70,7 +70,7 @@ function drawDusts() {
   pop();
 }
 function addXp(n) {
-  player.xp += n;
+  player.xp += n * (player.xpMul || 1);
   while (player.xp >= player.need) {
     player.xp -= player.need;
     player.lvl++;
@@ -131,6 +131,7 @@ function applyDrop(type, x, y) {
       if (up.length) {
         const w = pick(up);
         w.lv++;
+        if (player.weapons.some(x => x.lv >= 5)) grantAch('lv5');
         popText(player.x, player.y - 74, WDEF[w.id].name + ' Lv' + w.lv + '!', WDEF[w.id].col, 18);
         sfx.gift();
       } else {

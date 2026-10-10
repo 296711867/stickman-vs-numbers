@@ -546,6 +546,8 @@ function hurtEnemy(e, n, ang, kb, slow, crit) {
 
 function killEnemy(e) {
   play.kills++;
+  achCheckKills(play.kills);
+  markCodexKind(e.kind);
   const col = e.kind === 'num' ? tierCol(e.hp) : KIND_COL[e.kind] || [255, 255, 255];
   burst(e.x, e.y, col, e.kind === 'elite' ? 22 : 9, 180);
   dustBurst(e.x, e.y, e.kind === 'elite' ? 10 : 4);

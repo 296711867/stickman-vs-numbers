@@ -6,28 +6,33 @@
 function needXp(l) { return Math.floor(3 + l * 3 + Math.pow(l, 1.7)); }
 
 function makePlayer() {
+  const boot = metaLv('boot');
+  const mh = 5 + metaLv('heart');
   return {
     x: ARENA_W / 2, y: ARENA_H / 2, r: 15,
-    hearts: 5, maxHearts: 5, iframes: 0,
+    hearts: mh, maxHearts: mh, iframes: 0,
     spd: 245, face: 1, walkT: 0, moving: false,
-    xp: 0, lvl: 1, need: needXp(1),
+    xp: 0, lvl: 1 + boot, need: needXp(1 + boot),
     weapons: [{ id: 'pencil', lv: 1, cd: 0.6, ang: 0, sweepT: 0 }],
     passives: {},
     /* 被动聚合出的实时属性（recomputeStats 更新） */
     atkMul: 1, areaMul: 1, magR: 72, luck: 1, crit: 0, hasShield: false, shieldUp: false, shieldCd: 0,
+    xpMul: 1,
     slowFactor: 1,           // 被减号兵/水洼减速时的系数
     hurtFx: 0, deadT: -1,
   };
 }
 
-/* 由被动等级重算实时属性 */
+/* 由被动等级 + 局外强化重算实时属性 */
 function recomputeStats() {
   const p = player.passives;
-  player.atkMul = Math.pow(0.88, p.atk || 0);
+  const M = id => metaLv(id);
+  player.atkMul = Math.pow(0.88, p.atk || 0) * Math.pow(0.96, M('atk'));
   player.areaMul = 1 + 0.15 * (p.area || 0);
-  player.magR = 72 * (1 + 0.4 * (p.magnet || 0));
-  player.spd = 245 * (1 + 0.08 * (p.speed || 0));
-  player.luck = 1 + 0.35 * (p.luck || 0);
+  player.magR = 72 * (1 + 0.4 * (p.magnet || 0)) * (1 + 0.15 * M('mag'));
+  player.spd = 245 * (1 + 0.08 * (p.speed || 0)) * (1 + 0.04 * M('spd'));
+  player.luck = (1 + 0.35 * (p.luck || 0)) * (1 + 0.10 * M('luck'));
+  player.xpMul = 1 + 0.08 * M('xp');
   player.crit = 0.08 * (p.crit || 0);
   player.hasShield = (p.shield || 0) > 0;
   if (player.hasShield && player.shieldUp === undefined) player.shieldUp = true;
@@ -87,6 +92,7 @@ function hurtPlayer(n, sx, sy) {
     P.iframes = 0.8; sfx.shield(); addShake(4);
     return;
   }
+  play.hurtCount = (play.hurtCount || 0) + 1;
   P.hearts -= n;
   P.iframes = 1.25;
   P.hurtFx = 0.35;
